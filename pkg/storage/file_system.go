@@ -24,7 +24,6 @@ type FileSystemRepository struct {
 }
 
 func NewFileSystemRepository(codec Codec, rootPath string) (*FileSystemRepository, error) {
-
 	if rootPath == "" {
 		dir, err := os.Getwd()
 		if err != nil {
@@ -34,7 +33,7 @@ func NewFileSystemRepository(codec Codec, rootPath string) (*FileSystemRepositor
 		rootPath = dir
 	}
 
-	filePath := path.Join(rootPath, utils.ID())
+	filePath := path.Join(rootPath, "data")
 
 	var file *os.File
 	var err error

@@ -2,11 +2,13 @@ package storage_test
 
 import (
 	"context"
+	"path"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ForeverSRC/kaeya/pkg/domain"
+	"github.com/ForeverSRC/kaeya/pkg/utils"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ForeverSRC/kaeya/pkg/storage"
@@ -39,9 +41,11 @@ func TestNormal(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			rootPath := path.Join("testdata", utils.ID())
+
 			cd := codec.NewStringCodec()
 
-			fs, err := storage.NewFileSystemRepository(cd, "testdata")
+			fs, err := storage.NewFileSystemRepository(cd, rootPath)
 			assert.NoError(t, err)
 
 			ctx := context.Background()
@@ -82,9 +86,11 @@ func TestSaveAndLoad(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			rootPath := path.Join("testdata", utils.ID())
+
 			cd := codec.NewStringCodec()
 
-			fs, err := storage.NewFileSystemRepository(cd, "testdata")
+			fs, err := storage.NewFileSystemRepository(cd, rootPath)
 			assert.NoError(t, err)
 
 			ctx := context.Background()
@@ -114,9 +120,11 @@ func TestConcurrentReadWrite(t *testing.T) {
 		{Key: "123c", Value: "90"},
 	}
 
+	rootPath := path.Join("testdata", utils.ID())
+
 	cd := codec.NewStringCodec()
 
-	fs, err := storage.NewFileSystemRepository(cd, "testdata")
+	fs, err := storage.NewFileSystemRepository(cd, rootPath)
 	assert.NoError(t, err)
 
 	ctx := context.Background()
