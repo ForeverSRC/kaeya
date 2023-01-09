@@ -15,5 +15,6 @@
 # vendor/
 
 .idea
-/pkg/storage/testdata/
+
 /data/
+/pkg/storage/testdata/dynamic

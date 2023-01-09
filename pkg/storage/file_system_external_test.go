@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"context"
+	"errors"
 	"path"
 	"sync"
 	"testing"
@@ -13,6 +14,15 @@ import (
 
 	"github.com/ForeverSRC/kaeya/pkg/storage"
 	"github.com/ForeverSRC/kaeya/pkg/storage/codec"
+)
+
+const (
+	testRoot = "testdata"
+)
+
+var (
+	testDynamicRoot = path.Join(testRoot, "dynamic")
+	testStaticRoot  = path.Join(testRoot, "static")
 )
 
 func TestNormal(t *testing.T) {
@@ -41,11 +51,12 @@ func TestNormal(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			rootPath := path.Join("testdata", utils.ID())
+			rootPath := path.Join(testDynamicRoot, utils.ID())
 
 			cd := codec.NewStringCodec()
+			indexer := storage.NewInMemoryIndexer()
 
-			fs, err := storage.NewFileSystemRepository(cd, rootPath)
+			fs, err := storage.NewFileSystemRepository(cd, indexer, rootPath)
 			assert.NoError(t, err)
 
 			ctx := context.Background()
@@ -57,8 +68,12 @@ func TestNormal(t *testing.T) {
 
 			for _, e := range c.expected {
 				kv, err := fs.Load(ctx, e.Key)
-				assert.NoError(t, err)
+				if !errors.Is(err, storage.ErrNull) {
+					assert.NoError(t, err)
+				}
+
 				assert.Equal(t, e, kv)
+
 			}
 
 			fs.Close(context.Background())
@@ -86,11 +101,12 @@ func TestSaveAndLoad(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			rootPath := path.Join("testdata", utils.ID())
+			rootPath := path.Join(testDynamicRoot, utils.ID())
 
 			cd := codec.NewStringCodec()
+			indexer := storage.NewInMemoryIndexer()
 
-			fs, err := storage.NewFileSystemRepository(cd, rootPath)
+			fs, err := storage.NewFileSystemRepository(cd, indexer, rootPath)
 			assert.NoError(t, err)
 
 			ctx := context.Background()
@@ -100,7 +116,9 @@ func TestSaveAndLoad(t *testing.T) {
 				assert.NoError(t, err)
 
 				res, err := fs.Load(ctx, kv.Key)
-				assert.NoError(t, err)
+				if !errors.Is(err, storage.ErrNull) {
+					assert.NoError(t, err)
+				}
 				assert.Equal(t, kv, res)
 			}
 
@@ -120,11 +138,12 @@ func TestConcurrentReadWrite(t *testing.T) {
 		{Key: "123c", Value: "90"},
 	}
 
-	rootPath := path.Join("testdata", utils.ID())
+	rootPath := path.Join(testDynamicRoot, utils.ID())
 
 	cd := codec.NewStringCodec()
+	indexer := storage.NewInMemoryIndexer()
 
-	fs, err := storage.NewFileSystemRepository(cd, rootPath)
+	fs, err := storage.NewFileSystemRepository(cd, indexer, rootPath)
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -155,7 +174,10 @@ func TestConcurrentReadWrite(t *testing.T) {
 		defer wg.Done()
 		for i := range data {
 			kv, err := fs.Load(ctx, data[i].Key)
-			assert.NoError(t, err)
+			if !errors.Is(err, storage.ErrNull) {
+				assert.NoError(t, err)
+			}
+
 			assert.Equal(t, data[i].Key, kv.Key)
 			println(kv.Key, ":", kv.Value)
 			time.Sleep(300 * time.Millisecond)
@@ -167,10 +189,39 @@ func TestConcurrentReadWrite(t *testing.T) {
 	println("--------------")
 	for i := range data {
 		kv, err := fs.Load(ctx, data[i].Key)
-		assert.NoError(t, err)
+		if !errors.Is(err, storage.ErrNull) {
+			assert.NoError(t, err)
+		}
 		println(kv.Key, ":", kv.Value)
 	}
 
 	fs.Close(context.Background())
+
+}
+
+func TestInitIndex(t *testing.T) {
+	rootPath := path.Join(testStaticRoot, "init-index")
+
+	cd := codec.NewStringCodec()
+	indexer := storage.NewInMemoryIndexer()
+
+	fs, err := storage.NewFileSystemRepository(cd, indexer, rootPath)
+	assert.NoError(t, err)
+
+	ctx := context.Background()
+
+	existing := []domain.KV{
+		{"aaa", "10"},
+		{"bbb", "hhh"},
+		{"ccc", `{"a":1,"b":2}`},
+	}
+
+	for _, kv := range existing {
+		res, err := fs.Load(ctx, kv.Key)
+		if !errors.Is(err, storage.ErrNull) {
+			assert.NoError(t, err)
+		}
+		assert.Equal(t, kv.Value, res.Value)
+	}
 
 }

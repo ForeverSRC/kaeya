@@ -14,7 +14,7 @@ type Application struct {
 }
 
 func NewApplication(filePath string) (*Application, error) {
-	fsRepo, err := storage.NewFileSystemRepository(codec.NewStringCodec(), filePath)
+	fsRepo, err := storage.NewFileSystemRepository(codec.NewStringCodec(), storage.NewInMemoryIndexer(), filePath)
 	if err != nil {
 		return nil, fmt.Errorf("create app error %w", err)
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	kvFormat = "%s,%s\n"
+	kvFormat = "%s,%s"
 )
 
 var (
