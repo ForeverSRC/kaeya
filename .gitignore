@@ -17,4 +17,6 @@
 .idea
 
 /data/
-/pkg/storage/testdata/dynamic
+/pkg/storage/system/fs/testdata/dynamic
+/pkg/storage/system/segment/mananger/testdata/dynamic/
+/pkg/storage/system/segment/testdata/dynamic/
