@@ -2,7 +2,6 @@ package codec
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -28,12 +27,12 @@ func NewStringCodec() *StringCodec {
 	}
 }
 
-func (s *StringCodec) Encode(ctx context.Context, value domain.KV) ([]byte, error) {
+func (s *StringCodec) Encode(value domain.KV) ([]byte, error) {
 	buffer := bytes.NewBufferString(fmt.Sprintf(s.format, value.Key, value.Value))
 	return buffer.Bytes(), nil
 }
 
-func (s *StringCodec) Decode(ctx context.Context, bytes []byte) (domain.KV, error) {
+func (s *StringCodec) Decode(bytes []byte) (domain.KV, error) {
 	var res domain.KV
 
 	str := string(bytes)

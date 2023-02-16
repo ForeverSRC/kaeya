@@ -1,10 +1,15 @@
-package storage
+package index
 
 import (
 	"context"
 	"errors"
 	"sync"
 )
+
+type Indexer interface {
+	Index(ctx context.Context, key string, offset int64) error
+	Search(ctx context.Context, key string) (int64, error)
+}
 
 var ErrIndexMiss = errors.New("not found in index")
 
@@ -23,7 +28,7 @@ func NewInMemoryIndexer() *InMemoryIndexer {
 func (ir *InMemoryIndexer) Index(ctx context.Context, key string, offset int64) error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
-	
+
 	ir.hash[key] = offset
 	return nil
 }

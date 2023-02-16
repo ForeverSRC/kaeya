@@ -1,8 +1,7 @@
-package storage
+package fs
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,7 +10,9 @@ import (
 	"path"
 
 	"github.com/ForeverSRC/kaeya/pkg/domain"
-	"github.com/ForeverSRC/kaeya/pkg/utils"
+	codec2 "github.com/ForeverSRC/kaeya/pkg/storage/codec"
+	"github.com/ForeverSRC/kaeya/pkg/storage/common"
+	"github.com/ForeverSRC/kaeya/pkg/storage/index"
 )
 
 const (
@@ -24,16 +25,16 @@ const (
 
 var (
 	errIndexNotFound = errors.New("not found by index")
-	ErrNull          = errors.New("null vaule")
+	ErrNull          = errors.New("null value")
 )
 
 type FileSystemRepository struct {
 	file    *os.File
-	codec   Codec
-	indexer Indexer
+	codec   codec2.Codec
+	indexer index.Indexer
 }
 
-func NewFileSystemRepository(codec Codec, indexer Indexer, rootPath string) (*FileSystemRepository, error) {
+func NewFileSystemRepository(codec codec2.Codec, indexer index.Indexer, rootPath string) (*FileSystemRepository, error) {
 	fs := &FileSystemRepository{
 		codec:   codec,
 		indexer: indexer,
@@ -98,7 +99,7 @@ func (fr *FileSystemRepository) initIndex() {
 	var offset int64 = 0
 	for scanner.Scan() {
 		data := scanner.Bytes()
-		kv, err := fr.codec.Decode(ctx, data)
+		kv, err := fr.codec.Decode(data)
 		if err == nil {
 			_ = fr.indexer.Index(ctx, kv.Key, offset)
 		}
@@ -108,7 +109,7 @@ func (fr *FileSystemRepository) initIndex() {
 }
 
 func (fr *FileSystemRepository) Save(ctx context.Context, kv domain.KV) error {
-	data, err := fr.codec.Encode(ctx, kv)
+	data, err := fr.codec.Encode(kv)
 	if err != nil {
 		return fmt.Errorf("encode error: %w", err)
 	}
@@ -160,7 +161,7 @@ func (fr *FileSystemRepository) loadByIndex(ctx context.Context, key string) (do
 	offset, err := fr.indexer.Search(ctx, key)
 
 	if err != nil {
-		if errors.Is(err, ErrIndexMiss) {
+		if errors.Is(err, index.ErrIndexMiss) {
 			return res, errIndexNotFound
 		} else {
 			return res, err
@@ -180,7 +181,7 @@ func (fr *FileSystemRepository) loadByIndex(ctx context.Context, key string) (do
 		return res, err
 	}
 
-	kv, err := fr.codec.Decode(ctx, data[:len(data)-1])
+	kv, err := fr.codec.Decode(data[:len(data)-1])
 	if err != nil {
 		return res, err
 	}
@@ -198,56 +199,33 @@ func (fr *FileSystemRepository) loadFromFile(ctx context.Context, key string) (d
 		Key: key,
 	}
 
-	fs, err := fr.file.Stat()
-	if err != nil {
-		return res, fmt.Errorf("get file info error: %w", err)
-	}
-
-	size := fs.Size()
 	var offset int64 = -1
 
-	buf := make([]byte, 1)
-	lineBuf := bytes.NewBuffer(make([]byte, 0, 1024))
-
-	for -offset <= size {
-		ret, err := fr.file.Seek(offset, io.SeekEnd)
+	for {
+		data, newOffset, err := common.ReadLineFromTail(fr.file, offset, lineDelim)
 		if err != nil {
-			return res, fmt.Errorf("seek error: %w", err)
-		}
-
-		_, err = fr.file.ReadAt(buf, ret)
-		if err != nil {
-			return res, fmt.Errorf("read error: %w", err)
-		}
-
-		if buf[0] == lineDelim {
-			kv, err := fr.parseLine(ctx, lineBuf)
-			if err == nil && kv.Key == key {
-				// update index
-				_ = fr.indexer.Index(ctx, kv.Key, ret)
-				return kv, nil
+			switch {
+			case errors.Is(err, common.ErrEnd):
+				return res, ErrNull
+			case errors.Is(err, common.ErrEmptyLine):
+				offset = newOffset
+				continue
+			default:
+				return res, err
 			}
-		} else {
-			lineBuf.Write(buf)
 		}
 
-		offset--
+		kv, err := fr.codec.Decode(data)
+		if err != nil {
+			return res, err
+		}
+
+		if kv.Key == key {
+			return kv, nil
+		}
+
+		offset = newOffset
 	}
-
-	kv, err := fr.parseLine(ctx, lineBuf)
-	if err == nil && kv.Key == key {
-		_ = fr.indexer.Index(ctx, kv.Key, 0)
-		return kv, nil
-	}
-
-	return res, ErrNull
-}
-
-func (fr *FileSystemRepository) parseLine(ctx context.Context, lineBuf *bytes.Buffer) (domain.KV, error) {
-	data := utils.Reverse(lineBuf.Bytes())
-	lineBuf.Reset()
-	return fr.codec.Decode(ctx, data)
-
 }
 
 func (fr *FileSystemRepository) Close(ctx context.Context) error {

@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,17 +11,14 @@ import (
 
 	"github.com/ForeverSRC/kaeya/pkg/api/rest"
 	"github.com/ForeverSRC/kaeya/pkg/application"
+	"github.com/ForeverSRC/kaeya/pkg/config"
+	"github.com/ForeverSRC/kaeya/pkg/logger"
 )
 
 func main() {
-	wd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
+	conf := initGlobalDependency()
 
-	println("current dir:", wd)
-
-	app, err := application.NewApplication(wd)
+	app, err := application.NewApplication(conf)
 	if err != nil {
 		panic(err)
 	}
@@ -28,8 +26,8 @@ func main() {
 	server := rest.CreateHttpServer(app)
 
 	go func() {
-		if err = server.ListenAndServe(); err != nil {
-			fmt.Printf("http server serve error %v\n", err)
+		if err = server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Logger.Error().Err(err).Msg("http server serve error")
 		}
 	}()
 
@@ -42,13 +40,27 @@ func main() {
 	defer cancel()
 
 	if err = server.Shutdown(ctx); err != nil {
-		fmt.Printf("http server shutdown error %v\n", err)
+		logger.Logger.Error().Err(err).Msg("http server shutdown error")
 	}
 
 	if err = app.Close(ctx); err != nil {
-		fmt.Printf("application shutdown error %v\n", err)
+		logger.Logger.Error().Err(err).Msg("application shutdown error")
 	}
 
-	fmt.Println("application closed.")
+	logger.Logger.Info().Msg("application closed")
 
+}
+
+func initGlobalDependency() config.KaeyaConfig {
+	conf, err := config.ProvideConfig()
+	if err != nil {
+		panic(err)
+	}
+
+	err = logger.InitZerolog(conf.Log.Level)
+	if err != nil {
+		panic(err)
+	}
+
+	return conf
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/ForeverSRC/kaeya/pkg/domain"
 	"github.com/ForeverSRC/kaeya/pkg/storage"
+	"github.com/ForeverSRC/kaeya/pkg/storage/system/fs"
 )
 
 type DBService interface {
@@ -15,10 +16,10 @@ type DBService interface {
 }
 
 type DefaultDBService struct {
-	repo Repository
+	repo storage.Repository
 }
 
-func NewDefaultDBService(repo Repository) *DefaultDBService {
+func NewDefaultDBService(repo storage.Repository) *DefaultDBService {
 	return &DefaultDBService{
 		repo: repo,
 	}
@@ -31,7 +32,7 @@ func (d *DefaultDBService) Set(ctx context.Context, kv domain.KV) error {
 func (d *DefaultDBService) Get(ctx context.Context, key string) (domain.KV, error) {
 	kv, err := d.repo.Load(ctx, key)
 	if err != nil {
-		if errors.Is(err, storage.ErrNull) {
+		if errors.Is(err, fs.ErrNull) {
 			return domain.KV{Key: key}, nil
 		} else {
 			return domain.KV{}, err

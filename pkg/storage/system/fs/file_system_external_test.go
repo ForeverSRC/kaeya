@@ -1,4 +1,4 @@
-package storage_test
+package fs_test
 
 import (
 	"context"
@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/ForeverSRC/kaeya/pkg/domain"
+	"github.com/ForeverSRC/kaeya/pkg/storage/index"
+	"github.com/ForeverSRC/kaeya/pkg/storage/system/fs"
 	"github.com/ForeverSRC/kaeya/pkg/utils"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ForeverSRC/kaeya/pkg/storage"
 	"github.com/ForeverSRC/kaeya/pkg/storage/codec"
 )
 
@@ -54,21 +55,21 @@ func TestNormal(t *testing.T) {
 			rootPath := path.Join(testDynamicRoot, utils.ID())
 
 			cd := codec.NewStringCodec()
-			indexer := storage.NewInMemoryIndexer()
+			indexer := index.NewInMemoryIndexer()
 
-			fs, err := storage.NewFileSystemRepository(cd, indexer, rootPath)
+			fr, err := fs.NewFileSystemRepository(cd, indexer, rootPath)
 			assert.NoError(t, err)
 
 			ctx := context.Background()
 
 			for _, kv := range c.kvs {
-				err = fs.Save(ctx, kv)
+				err = fr.Save(ctx, kv)
 				assert.NoError(t, err)
 			}
 
 			for _, e := range c.expected {
-				kv, err := fs.Load(ctx, e.Key)
-				if !errors.Is(err, storage.ErrNull) {
+				kv, err := fr.Load(ctx, e.Key)
+				if !errors.Is(err, fs.ErrNull) {
 					assert.NoError(t, err)
 				}
 
@@ -76,7 +77,7 @@ func TestNormal(t *testing.T) {
 
 			}
 
-			fs.Close(context.Background())
+			fr.Close(context.Background())
 		})
 	}
 
@@ -104,25 +105,25 @@ func TestSaveAndLoad(t *testing.T) {
 			rootPath := path.Join(testDynamicRoot, utils.ID())
 
 			cd := codec.NewStringCodec()
-			indexer := storage.NewInMemoryIndexer()
+			indexer := index.NewInMemoryIndexer()
 
-			fs, err := storage.NewFileSystemRepository(cd, indexer, rootPath)
+			fr, err := fs.NewFileSystemRepository(cd, indexer, rootPath)
 			assert.NoError(t, err)
 
 			ctx := context.Background()
 
 			for _, kv := range c.data {
-				err = fs.Save(ctx, kv)
+				err = fr.Save(ctx, kv)
 				assert.NoError(t, err)
 
-				res, err := fs.Load(ctx, kv.Key)
-				if !errors.Is(err, storage.ErrNull) {
+				res, err := fr.Load(ctx, kv.Key)
+				if !errors.Is(err, fs.ErrNull) {
 					assert.NoError(t, err)
 				}
 				assert.Equal(t, kv, res)
 			}
 
-			fs.Close(context.Background())
+			fr.Close(context.Background())
 		})
 	}
 
@@ -141,9 +142,9 @@ func TestConcurrentReadWrite(t *testing.T) {
 	rootPath := path.Join(testDynamicRoot, utils.ID())
 
 	cd := codec.NewStringCodec()
-	indexer := storage.NewInMemoryIndexer()
+	indexer := index.NewInMemoryIndexer()
 
-	fs, err := storage.NewFileSystemRepository(cd, indexer, rootPath)
+	fr, err := fs.NewFileSystemRepository(cd, indexer, rootPath)
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -154,7 +155,7 @@ func TestConcurrentReadWrite(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for _, kv := range data {
-			err = fs.Save(ctx, kv)
+			err = fr.Save(ctx, kv)
 			assert.NoError(t, err)
 			time.Sleep(500 * time.Millisecond)
 		}
@@ -164,7 +165,7 @@ func TestConcurrentReadWrite(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := range data {
-			err = fs.Save(ctx, data[len(data)-i-1])
+			err = fr.Save(ctx, data[len(data)-i-1])
 			assert.NoError(t, err)
 		}
 	}()
@@ -173,8 +174,8 @@ func TestConcurrentReadWrite(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := range data {
-			kv, err := fs.Load(ctx, data[i].Key)
-			if !errors.Is(err, storage.ErrNull) {
+			kv, err := fr.Load(ctx, data[i].Key)
+			if !errors.Is(err, fs.ErrNull) {
 				assert.NoError(t, err)
 			}
 
@@ -188,14 +189,14 @@ func TestConcurrentReadWrite(t *testing.T) {
 
 	println("--------------")
 	for i := range data {
-		kv, err := fs.Load(ctx, data[i].Key)
-		if !errors.Is(err, storage.ErrNull) {
+		kv, err := fr.Load(ctx, data[i].Key)
+		if !errors.Is(err, fs.ErrNull) {
 			assert.NoError(t, err)
 		}
 		println(kv.Key, ":", kv.Value)
 	}
 
-	fs.Close(context.Background())
+	fr.Close(context.Background())
 
 }
 
@@ -203,9 +204,9 @@ func TestInitIndex(t *testing.T) {
 	rootPath := path.Join(testStaticRoot, "init-index")
 
 	cd := codec.NewStringCodec()
-	indexer := storage.NewInMemoryIndexer()
+	indexer := index.NewInMemoryIndexer()
 
-	fs, err := storage.NewFileSystemRepository(cd, indexer, rootPath)
+	fr, err := fs.NewFileSystemRepository(cd, indexer, rootPath)
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -217,8 +218,8 @@ func TestInitIndex(t *testing.T) {
 	}
 
 	for _, kv := range existing {
-		res, err := fs.Load(ctx, kv.Key)
-		if !errors.Is(err, storage.ErrNull) {
+		res, err := fr.Load(ctx, kv.Key)
+		if !errors.Is(err, fs.ErrNull) {
 			assert.NoError(t, err)
 		}
 		assert.Equal(t, kv.Value, res.Value)

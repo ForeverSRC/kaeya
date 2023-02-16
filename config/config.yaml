@@ -1,0 +1,11 @@
+log:
+  level: debug
+
+storage:
+  system: segment
+  segment:
+    buffer_size: 1k
+    merge_floor: 1k
+    refresh_interval: 5s
+    flush_interval: 15s
+    merge_interval: 30s
